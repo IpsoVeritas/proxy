@@ -1,21 +1,21 @@
+proxy:
+  image:
+    repository: docker.github.io/IpsoVeritas/proxy
+    tag: latest
+    pullPolicy: IfNotPresent
 
-image:
-  repository: docker.github.io/IpsoVeritas/proxy
-  tag: latest
-  pullPolicy: IfNotPresent
+  port: 6519
+  base: https://proxy.example.com
 
-port: 6519
-base: https://lars.ngrok.io
+  log:
+    level: debug
+    formatter: text
 
-log:
-  level: debug
-  formatter: text
+  service:
+    annotations: {}
 
-service:
-  annotations: {}
+  ingress:
+    enabled: false
+    hostname: "*.proxy.example.com"
 
-ingress:
-  enabled: false
-  hostname: "*.proxy.localhost"
-
-  annotations: {}
+    annotations: {}

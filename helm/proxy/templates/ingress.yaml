@@ -1,25 +1,25 @@
-{{- if .Values.ingress.enabled }}
+{{- if .Values.proxy.ingress.enabled }}
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
   name: {{ .Chart.Name }}
   annotations:
-    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+    {{- toYaml .Values.proxy.ingress.annotations | nindent 4 }}
 spec:
   rules:
-  - host: "{{ .Values.ingress.hostname }}"
+  - host: "{{ .Values.proxy.ingress.hostname }}"
     http:
       paths:
       - backend:
           serviceName: proxy
-          servicePort: {{ .Values.port }}
+          servicePort: {{ .Values.proxy.port }}
         path: /
-  {{- if .Values.ingress.tls }}
+  {{- if .Values.proxy.ingress.tls }}
   tls:
   - hosts:
-    - "{{ .Values.ingress.hostname }}"
-    {{- if .Values.ingress.tls.secretName }}
-    secretName: {{ .Values.ingress.tls.secretName }}
+    - "{{ .Values.proxy.ingress.hostname }}"
+    {{- if .Values.proxy.ingress.tls.secretName }}
+    secretName: {{ .Values.proxy.ingress.tls.secretName }}
     {{- end }}
   {{- end }}
 {{- end }}

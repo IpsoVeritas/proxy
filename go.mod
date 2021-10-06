@@ -2,19 +2,11 @@ module github.com/IpsoVeritas/proxy
 
 go 1.16
 
-replace github.com/IpsoVeritas/document => ../document
-
-replace github.com/IpsoVeritas/httphandler => ../httphandler
-
-replace github.com/IpsoVeritas/crypto => ../crypto
-
-replace github.com/IpsoVeritas/logger => ../logger
-
 require (
-	github.com/IpsoVeritas/crypto v0.0.0-20181010203950-c229a2b23e68
-	github.com/IpsoVeritas/document v0.0.0-20180814075806-099bc71d4b53
-	github.com/IpsoVeritas/httphandler v0.0.0-20181212145926-bf993b3ad528
-	github.com/IpsoVeritas/logger v0.0.0-20180912100710-b76d97958f28
+	github.com/IpsoVeritas/crypto v0.0.0-20211006191928-624b3d267b97
+	github.com/IpsoVeritas/document v0.0.0-20211006175647-cd7abd7441a8
+	github.com/IpsoVeritas/httphandler v0.0.0-20211006192537-8f7b2d45c359
+	github.com/IpsoVeritas/logger v0.0.0-20211006181550-96416e0d030b
 	github.com/gorilla/websocket v1.4.2
 	github.com/joho/godotenv v1.3.0
 	github.com/julienschmidt/httprouter v1.3.0

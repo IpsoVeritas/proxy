@@ -39,6 +39,14 @@ cloud.google.com/go/storage v1.10.0/go.mod h1:FLPqc6j+Ki4BU591ie1oL6qBQGu2Bl/tZ9
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
+github.com/IpsoVeritas/crypto v0.0.0-20211006191928-624b3d267b97 h1:2x/c815ufk3Beh8abMolipPWMiMNPBWJjeT1Op+5D1I=
+github.com/IpsoVeritas/crypto v0.0.0-20211006191928-624b3d267b97/go.mod h1:Abkayyne5Bi8UDphH/RJmsAP11iJDXJzBAQ3roKWQ8g=
+github.com/IpsoVeritas/document v0.0.0-20211006175647-cd7abd7441a8 h1:goYJ4pgZuxjmzsBmLFv6WBdsPNHBXBSPlfNoD9S4rps=
+github.com/IpsoVeritas/document v0.0.0-20211006175647-cd7abd7441a8/go.mod h1:E5LK310mMtpFtsY7l5KgVYMUAt7Sl2RMtqoQdI46jtA=
+github.com/IpsoVeritas/httphandler v0.0.0-20211006192537-8f7b2d45c359 h1:CcIWvP1pgyKcMQgNsESSWi0x4HU6cPE3nA2M2mLxbI4=
+github.com/IpsoVeritas/httphandler v0.0.0-20211006192537-8f7b2d45c359/go.mod h1:Cric12c1BjG5GFmeukQ3MKz8ID0iZFmHpW1Dt76ekew=
+github.com/IpsoVeritas/logger v0.0.0-20211006181550-96416e0d030b h1:J1c7+lfs9bb5mGfHe5qp7qMkOS3fgOgVm1eMzZLzDJM=
+github.com/IpsoVeritas/logger v0.0.0-20211006181550-96416e0d030b/go.mod h1:CgXA3A60F88UvL0KptQMoNhtic2NNIaXTdcCg5dN2Ig=
 github.com/antihax/optional v1.0.0/go.mod h1:uupD/76wgC+ih3iEmQUL+0Ugr19nfwCT1kdvxnR2qWY=
 github.com/armon/circbuf v0.0.0-20150827004946-bbbad097214e/go.mod h1:3U/XgcO3hCbHZ8TKRvWD2dDTCfh9M9ya+I9JpbB7O8o=
 github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da/go.mod h1:Q73ZrmVTwzkszR9V5SSuryQ31EELlFMUz1kKyl939pY=

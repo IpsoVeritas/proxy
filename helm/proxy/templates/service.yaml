@@ -6,11 +6,11 @@ metadata:
     app: proxy
     release: {{ .Release.Name }}
   annotations:
-    {{- toYaml .Values.service.annotations | nindent 4 }}
+    {{- toYaml .Values.proxy.service.annotations | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.proxy.service.type }}
   ports:
-  - port: {{ .Values.port }}
+  - port: {{ .Values.proxy.port }}
     name: api
   selector:
     app: proxy
