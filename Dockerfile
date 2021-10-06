@@ -1,0 +1,18 @@
+ARG BUILDER=golang:1.16
+FROM ${BUILDER} AS build
+
+WORKDIR /code/proxy
+ADD go.mod .
+ADD go.sum .
+RUN go mod download
+
+ADD . .
+
+ARG VERSION=0.0.0-snapshot
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-X github.com/IpsoVeritas/proxy/pkg/version.Version=$VERSION" -o /proxy-server ./cmd/proxy-server
+
+FROM alpine:3.11
+
+COPY --from=build /proxy-server /proxy-server
+
+CMD [ "/proxy-server" ]

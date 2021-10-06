@@ -4,8 +4,8 @@ import (
 	"os"
 	"path"
 
-	httphandler "github.com/Brickchain/go-httphandler.v2"
-	"github.com/Brickchain/go-proxy.v1/pkg/version"
+	"github.com/IpsoVeritas/httphandler"
+	"github.com/IpsoVeritas/proxy/pkg/version"
 
 	"net/http"
 )

@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	hash "crypto"
+	"encoding/base32"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -9,31 +11,28 @@ import (
 	"sync"
 	"time"
 
-	crypto "github.com/Brickchain/go-crypto.v2"
-	document "github.com/Brickchain/go-document.v2"
-	logger "github.com/Brickchain/go-logger.v1"
-	proxy "github.com/Brickchain/go-proxy.v1"
-	"github.com/Brickchain/go-proxy.v1/pkg/server"
-	"github.com/Brickchain/go-proxy.v1/pkg/server/clients"
-	pubsub "github.com/Brickchain/go-pubsub.v1"
+	"github.com/IpsoVeritas/crypto"
+	"github.com/IpsoVeritas/document"
+	"github.com/IpsoVeritas/httphandler"
+	"github.com/IpsoVeritas/logger"
+	"github.com/IpsoVeritas/proxy"
 	"github.com/gorilla/websocket"
 	"github.com/julienschmidt/httprouter"
 	"github.com/pkg/errors"
+	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	jose "gopkg.in/square/go-jose.v1"
 )
 
 type SubscribeController struct {
 	domain  string
-	clients *clients.ClientService
-	pubsub  pubsub.PubSubInterface
+	clients proxy.Registry
 }
 
-func NewSubscribeController(domain string, clients *clients.ClientService, pubsub pubsub.PubSubInterface) *SubscribeController {
+func NewSubscribeController(domain string, clients proxy.Registry) *SubscribeController {
 	return &SubscribeController{
 		domain:  domain,
 		clients: clients,
-		pubsub:  pubsub,
 	}
 }
 
@@ -45,12 +44,9 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func (c *SubscribeController) SubscribeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-
-	ctx, cancel := context.WithCancel(r.Context())
-	defer cancel()
-
-	clients := make([]*server.Client, 0)
+func (s *SubscribeController) SubscribeHandler(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	ctx := context.WithValue(r.Context(), httphandler.RequestIDKey, uuid.NewV4().String())
+	log := logger.ForContext(ctx)
 
 	respHeaders := make(http.Header)
 	respHeaders.Add("Access-Control-Allow-Origin", r.Header.Get("Origin"))
@@ -61,177 +57,201 @@ func (c *SubscribeController) SubscribeHandler(w http.ResponseWriter, r *http.Re
 	}
 	defer conn.Close()
 
-	lock := sync.Mutex{}
-	write := func(msg []byte) error {
-		lock.Lock()
-		defer lock.Unlock()
+	client := s.newClient(r.Context(), conn)
 
-		return conn.WriteMessage(websocket.TextMessage, msg)
+	if err := client.handle(); err != nil {
+		log.Error(err)
 	}
 
-	wg := sync.WaitGroup{}
+	log.Debug("Client disconnected")
+}
 
-	addClient := func(r *proxy.RegistrationRequest) {
-		key, err := parseMandateToken(r.MandateToken)
-		if err != nil {
-			write([]byte(err.Error()))
-			logger.Error(err)
+type client struct {
+	clients proxy.Registry
+	domain  string
+
+	ctx    context.Context
+	cancel func()
+
+	lock *sync.Mutex
+	conn *websocket.Conn
+	wg   *sync.WaitGroup
+
+	authenticated chan bool
+	id            string
+
+	logger *logger.Entry
+}
+
+func (s *SubscribeController) newClient(ctx context.Context, conn *websocket.Conn) *client {
+	c := &client{
+		clients:       s.clients,
+		domain:        s.domain,
+		lock:          &sync.Mutex{},
+		conn:          conn,
+		wg:            &sync.WaitGroup{},
+		logger:        httphandler.LoggerForContext(ctx),
+		authenticated: make(chan bool),
+	}
+
+	c.ctx, c.cancel = context.WithCancel(ctx)
+
+	go func(c *client) {
+		select {
+		case <-ctx.Done():
 			return
-		}
-
-		client := server.NewClient(key, r.Session)
-		if err := c.clients.Set(client); err != nil {
-			write([]byte(err.Error()))
-			logger.Error(err)
+		case <-c.authenticated:
+			c.logger.Debug("Client authenticated")
 			return
+		case <-time.After(time.Second * 10):
+			c.logger.Warn("Not authenticated after 10 seconds, dropping connection")
+			c.cancel()
 		}
+	}(c)
 
-		logger.Debugf("Adding client %s", client.ID)
-		defer wg.Done()
+	return c
+}
 
-		clients = append(clients, client)
+func (c *client) ID() string {
+	return c.id
+}
 
-		sub, err := c.pubsub.Subscribe("proxy", fmt.Sprintf("/proxy/connections/%s", client.ID))
-		if err != nil {
-			logger.Error(errors.Wrap(err, "failed to push message"))
-			return
-		}
-		defer sub.Stop(time.Second * 1)
+func (c *client) Write(p []byte) (n int, err error) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-		res := proxy.NewRegistrationResponse(r.ID, client.ID)
-		if c.domain != "" {
-			res.Hostname = fmt.Sprintf("%s.%s", client.ID, c.domain)
-		}
-		resBytes, _ := json.Marshal(res)
-		if err = write([]byte(resBytes)); err != nil {
-			cancel()
-			logger.Error(err)
-			return
-		}
+	if err = c.conn.WriteMessage(websocket.TextMessage, p); err != nil {
+		return 0, err
+	}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(time.Second * 10):
-				if err = write([]byte("{\"@type\":\"https://proxy.brickchain.com/v1/ping.json\"}\n")); err != nil {
-					logger.Error(err)
-					cancel()
-					return
-				}
-			case msg := <-sub.Chan():
-				if err = write([]byte(msg)); err != nil {
-					logger.Error(err)
-					cancel()
-					return
-				}
+	return len(p), nil
+}
+
+func (c *client) handle() error {
+	for {
+		select {
+		case <-c.ctx.Done():
+			c.logger.Debug("context done")
+			if err := c.clients.Unregister(c); err != nil {
+				c.logger.Error(err)
+			}
+			c.wg.Wait()
+			return nil
+		default:
+			fmt.Println("read message")
+			_, body, err := c.conn.ReadMessage()
+			if err != nil {
+				return errors.Wrap(err, "failed to read message")
 			}
 
-			if err := c.clients.RenewTTL(client.ID); err != nil {
-				logger.Errorf("failed to renew TTL for %s: %s", client.ID, err)
+			fmt.Println(string(body))
+
+			c.wg.Add(1)
+			go c.handleMessage(body)
+		}
+	}
+}
+
+func (c *client) handleMessage(body []byte) {
+	defer c.wg.Done()
+	docType, err := document.GetType(body)
+	if err != nil {
+		c.logger.Error("failed to get type of document: ", err)
+		return
+	}
+
+	switch docType {
+	case proxy.SchemaLocation + "/registration-request.json":
+		r := &proxy.RegistrationRequest{}
+		if err := json.Unmarshal(body, &r); err != nil {
+			c.logger.Error("failed to unmarshal registration-request: ", err)
+			return
+		}
+
+		if err := c.register(r); err != nil {
+			c.logger.Error(err)
+			return
+		}
+
+	case proxy.SchemaLocation + "/http-response.json":
+		r := &proxy.HttpResponse{}
+		if len(body) > 1024*500 {
+			r.Status = http.StatusBadGateway
+		} else {
+			if err := json.Unmarshal(body, &r); err != nil {
+				c.logger.Error(err)
+				return
+			}
+		}
+		if r != nil {
+			client, err := c.clients.Get(r.ID)
+			if err != nil {
+				c.logger.Error(err)
+				return
+			}
+			if _, err := client.Write(body); err != nil {
+				c.logger.Error(err)
+			}
+		}
+	case proxy.SchemaLocation + "/disconnect.json":
+		c.cancel()
+		return
+
+	default:
+		c.logger.Warningf("Unknown message type %s", docType)
+	}
+}
+
+func (c *client) register(r *proxy.RegistrationRequest) error {
+	key, err := parseMandateToken(r.MandateToken)
+	if err != nil {
+		c.Write([]byte(err.Error()))
+		return err
+	}
+
+	c.id = crypto.Thumbprint(key)
+	if r.Session != "" {
+		h := hash.SHA256.New()
+		h.Write([]byte(c.id))
+		h.Write([]byte(r.Session))
+
+		c.id = strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(h.Sum(nil)))
+	}
+
+	c.logger.Debugf("Adding client %s", c.id)
+	c.authenticated <- true
+
+	if err := c.clients.Register(c); err != nil {
+		return errors.Wrap(err, "failed to register client")
+	}
+
+	res := proxy.NewRegistrationResponse(r.ID, c.id)
+	if c.domain != "" {
+		res.Hostname = fmt.Sprintf("%s.%s", c.id, c.domain)
+	}
+	resBytes, _ := json.Marshal(res)
+	if _, err = c.Write([]byte(resBytes)); err != nil {
+		return err
+	}
+
+	go c.ping()
+
+	return nil
+}
+
+func (c *client) ping() {
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-time.After(time.Second * 10):
+			if _, err := c.Write([]byte(fmt.Sprintf(`{"@type":"%s/ping.json"}`, proxy.SchemaLocation))); err != nil {
+				c.logger.Error(err)
+				c.cancel()
+				return
 			}
 		}
 	}
-
-	go func() {
-		<-time.After(time.Second * 10)
-		if len(clients) < 1 {
-			logger.Warn("Not authenticated after 10 seconds, dropping connection")
-			cancel()
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				_, body, err := conn.ReadMessage()
-				if err != nil {
-					fmt.Printf("got error while reading message: %s\n", err)
-					// close(done)
-					return
-				}
-
-				go func() {
-					wg.Add(1)
-					defer wg.Done()
-					docType, err := document.GetType(body)
-					if err != nil {
-						logger.Error("failed to get type of document: ", err)
-						return
-					}
-
-					switch docType {
-					case proxy.SchemaBase + "/registration-request.json":
-						r := &proxy.RegistrationRequest{}
-						if err := json.Unmarshal(body, &r); err != nil {
-							logger.Error("failed to unmarshal registration-request: ", err)
-							return
-						}
-
-						wg.Add(1)
-						go addClient(r)
-						return
-
-					case proxy.SchemaBase + "/http-response.json":
-						r := &proxy.HttpResponse{}
-						if len(body) > 1024*500 {
-							r.Status = http.StatusBadGateway
-						} else {
-							if err := json.Unmarshal(body, &r); err != nil {
-								fmt.Printf("could not unmarshal message: %s\n", err)
-								return
-							}
-						}
-						if r != nil {
-							if err := c.pubsub.Publish(fmt.Sprintf("/proxy/responses/%s", r.ID), string(body)); err != nil {
-								fmt.Printf("could not publish message: %s\n", err)
-							}
-						}
-					case proxy.SchemaBase + "/ws-response.json":
-						r := &proxy.WSResponse{}
-						if err := json.Unmarshal(body, &r); err != nil {
-							fmt.Printf("could not unmarshal message: %s\n", err)
-							return
-						}
-						if err := c.pubsub.Publish(fmt.Sprintf("/proxy/websocket/%s", r.ID), string(body)); err != nil {
-							fmt.Printf("could not publish message: %s\n", err)
-						}
-					case proxy.SchemaBase + "/ws-message.json":
-						r := &proxy.WSMessage{}
-						if err := json.Unmarshal(body, &r); err != nil {
-							fmt.Printf("could not unmarshal message: %s\n", err)
-							return
-						}
-						if err := c.pubsub.Publish(fmt.Sprintf("/proxy/websocket/%s", r.ID), string(body)); err != nil {
-							fmt.Printf("could not publish message: %s\n", err)
-						}
-					case proxy.SchemaBase + "/ws-teardown.json":
-						r := &proxy.WSTeardown{}
-						if err := json.Unmarshal(body, &r); err != nil {
-							fmt.Printf("could not unmarshal message: %s\n", err)
-							return
-						}
-						if err := c.pubsub.Publish(fmt.Sprintf("/proxy/websocket/%s", r.ID), string(body)); err != nil {
-							fmt.Printf("could not publish message: %s\n", err)
-						}
-					case proxy.SchemaBase + "/disconnect.json":
-						cancel()
-						return
-					}
-
-				}()
-			}
-			time.Sleep(time.Millisecond * 1)
-		}
-	}()
-
-	wg.Wait()
-
 }
 
 func parseMandateToken(tokenString string) (*jose.JsonWebKey, error) {

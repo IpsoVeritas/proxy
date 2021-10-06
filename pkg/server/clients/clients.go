@@ -1,53 +1,49 @@
 package clients
 
 import (
-	"encoding/json"
-	"fmt"
-	"time"
+	"sync"
 
-	cache "github.com/Brickchain/go-cache.v1"
-	"github.com/Brickchain/go-proxy.v1/pkg/server"
-	"github.com/pkg/errors"
+	"github.com/IpsoVeritas/proxy"
 )
 
-type ClientService struct {
-	cache cache.Cache
+type Registry struct {
+	clients map[string]proxy.Client
+	lock    *sync.RWMutex
 }
 
-func NewClientService(cache cache.Cache) *ClientService {
-	return &ClientService{
-		cache: cache,
+func New() *Registry {
+	return &Registry{
+		clients: make(map[string]proxy.Client),
+		lock:    &sync.RWMutex{},
 	}
 }
 
-func (c *ClientService) Get(id string) (*server.Client, error) {
-	// logger.Debug("Get client: ", id)
-	b, err := c.cache.Get(fmt.Sprintf("/proxy/clients/%s", id))
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get client from cache")
-	}
+func (c *Registry) Get(id string) (proxy.Client, error) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
-	client := &server.Client{}
-	if err := json.Unmarshal(b, &client); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal client")
+	client, ok := c.clients[id]
+	if !ok {
+		return nil, proxy.ErrClientNotFound
 	}
 
 	return client, nil
 }
 
-func (c *ClientService) Set(client *server.Client) error {
-	b, err := json.Marshal(client)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal client")
-	}
+func (c *Registry) Register(client proxy.Client) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	if err := c.cache.Set(fmt.Sprintf("/proxy/clients/%s", client.ID), b, time.Minute*1); err != nil {
-		return errors.Wrap(err, "failed to write client to cache")
-	}
+	c.clients[client.ID()] = client
 
 	return nil
 }
 
-func (c *ClientService) RenewTTL(id string) error {
-	return c.cache.Extend(fmt.Sprintf("/proxy/clients/%s", id), time.Minute*1)
+func (c *Registry) Unregister(client proxy.Client) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	delete(c.clients, client.ID())
+
+	return nil
 }

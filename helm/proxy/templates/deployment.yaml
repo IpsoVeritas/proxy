@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: proxy
+  labels:
+    app: proxy
+    chart: {{ .Chart.Name }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: proxy
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: proxy
+        release: {{ .Release.Name }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      {{- if .Values.imagePullSecrets }}
+      {{- with .Values.imagePullSecrets  }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /proxy-server
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.log.level }}
+            - name: LOG_FORMATTER
+              value: {{ .Values.log.formatter}}
+            - name: ADDR
+              value: ":{{ .Values.port }}"
+            - name: BASE
+              value: "{{ .Values.base }}"
+            - name: DOMAIN
+              value: "{{ .Values.domain }}"
+          ports:
+            - name: api
+              containerPort: {{ .Values.port }}
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.port }}
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

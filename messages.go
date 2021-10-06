@@ -3,11 +3,11 @@ package proxy
 import (
 	"time"
 
-	document "github.com/Brickchain/go-document.v2"
+	document "github.com/IpsoVeritas/document"
 	uuid "github.com/satori/go.uuid"
 )
 
-const SchemaBase = "https://proxy.brickchain.com/v1"
+const SchemaLocation = document.SchemaBase + "/proxy/v0"
 
 type HttpRequest struct {
 	document.Base
@@ -21,8 +21,8 @@ type HttpRequest struct {
 func NewHttpRequest(url string) *HttpRequest {
 	return &HttpRequest{
 		Base: document.Base{
-			ID:        uuid.Must(uuid.NewV4()).String(),
-			Type:      SchemaBase + "/http-request.json",
+			ID:        uuid.NewV4().String(),
+			Type:      SchemaLocation + "/http-request.json",
 			Timestamp: time.Now().UTC(),
 		},
 		URL: url,
@@ -41,7 +41,7 @@ func NewHttpResponse(id string, status int) *HttpResponse {
 	return &HttpResponse{
 		Base: document.Base{
 			ID:        id,
-			Type:      SchemaBase + "/http-response.json",
+			Type:      SchemaLocation + "/http-response.json",
 			Timestamp: time.Now().UTC(),
 		},
 		Status: status,
@@ -57,8 +57,8 @@ type RegistrationRequest struct {
 func NewRegistrationRequest(mandateToken string) *RegistrationRequest {
 	return &RegistrationRequest{
 		Base: document.Base{
-			ID:        uuid.Must(uuid.NewV4()).String(),
-			Type:      SchemaBase + "/registration-request.json",
+			ID:        uuid.NewV4().String(),
+			Type:      SchemaLocation + "/registration-request.json",
 			Timestamp: time.Now().UTC(),
 		},
 		MandateToken: mandateToken,
@@ -75,7 +75,7 @@ func NewRegistrationResponse(id string, keyID string) *RegistrationResponse {
 	return &RegistrationResponse{
 		Base: document.Base{
 			ID:        id,
-			Type:      SchemaBase + "/registration-response.json",
+			Type:      SchemaLocation + "/registration-response.json",
 			Timestamp: time.Now().UTC(),
 		},
 		KeyID: keyID,
@@ -89,8 +89,8 @@ type Ping struct {
 func NewPing() *Ping {
 	return &Ping{
 		Base: document.Base{
-			ID:        uuid.Must(uuid.NewV4()).String(),
-			Type:      SchemaBase + "/ping.json",
+			ID:        uuid.NewV4().String(),
+			Type:      SchemaLocation + "/ping.json",
 			Timestamp: time.Now().UTC(),
 		},
 	}
@@ -106,8 +106,8 @@ type WSRequest struct {
 func NewWSRequest(url string) *WSRequest {
 	return &WSRequest{
 		Base: document.Base{
-			ID:        uuid.Must(uuid.NewV4()).String(),
-			Type:      SchemaBase + "/ws-request.json",
+			ID:        uuid.NewV4().String(),
+			Type:      SchemaLocation + "/ws-request.json",
 			Timestamp: time.Now().UTC(),
 		},
 		URL:     url,
@@ -125,7 +125,7 @@ func NewWSResponse(id string, ok bool) *WSResponse {
 	return &WSResponse{
 		Base: document.Base{
 			ID:        id,
-			Type:      SchemaBase + "/ws-response.json",
+			Type:      SchemaLocation + "/ws-response.json",
 			Timestamp: time.Now().UTC(),
 		},
 		OK: ok,
@@ -142,7 +142,7 @@ func NewWSMessage(id string) *WSMessage {
 	return &WSMessage{
 		Base: document.Base{
 			ID:        id,
-			Type:      SchemaBase + "/ws-message.json",
+			Type:      SchemaLocation + "/ws-message.json",
 			Timestamp: time.Now().UTC(),
 		},
 	}
@@ -156,7 +156,7 @@ func NewWSTeardown(id string) *WSTeardown {
 	return &WSTeardown{
 		Base: document.Base{
 			ID:        id,
-			Type:      SchemaBase + "/ws-teardown.json",
+			Type:      SchemaLocation + "/ws-teardown.json",
 			Timestamp: time.Now().UTC(),
 		},
 	}
@@ -169,8 +169,8 @@ type Disconnect struct {
 func NewDisconnect() *Disconnect {
 	return &Disconnect{
 		Base: document.Base{
-			ID:        uuid.Must(uuid.NewV4()).String(),
-			Type:      SchemaBase + "/disconnect.json",
+			ID:        uuid.NewV4().String(),
+			Type:      SchemaLocation + "/disconnect.json",
 			Timestamp: time.Now().UTC(),
 		},
 	}
